@@ -4,7 +4,7 @@ A lightweight, browser-based project management board for our team collaboration
 
 ## 🚀 Live Board
 
-**Access the board here:** [https://github.com/VSurya24/Intern-Kanban#]
+**Access the board here:** [https://vsurya24.github.io/Intern-Kanban/]
 
 
 ## ✨ Features
