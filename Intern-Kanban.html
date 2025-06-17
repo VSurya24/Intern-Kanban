@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Project Management Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .drag-over {
+            background-color: #f3f4f6;
+            border: 2px dashed #9ca3af;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .task-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .subtask {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            margin: 0.125rem 0;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.25rem;
+        }
+
+        .subtask.completed {
+            text-decoration: line-through;
+            background: #f0fdf4;
+            color: #6b7280;
+        }
+
+        .label {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            margin: 0.125rem;
+            border-radius: 9999px;
+            display: inline-block;
+        }
+
+        .comment {
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            background: #f8fafc;
+            border-radius: 0.375rem;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.3s ease;
+        }
+
+        .filter-chip {
+            padding: 0.25rem 0.75rem;
+            margin: 0.125rem;
+            background: #e5e7eb;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .filter-chip.active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <h1 class="text-2xl font-bold text-gray-900">Project Board</h1>
+                
+                <!-- Search and Filters -->
+                <div class="flex items-center gap-4 flex-wrap">
+                    <input 
+                        type="text" 
+                        id="searchTasks" 
+                        placeholder="Search tasks..." 
+                        class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        oninput="filterTasks()"
+                    >
+                    
+                    <select id="filterAssignee" onchange="filterTasks()" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Assignees</option>
+                        <option value="surya">Venkata Surya</option>
+                        <option value="sushanth">Sushanth Maiya</option>
+                        <option value="shivani">Shivani Tajane</option>
+                        <option value="sejal">Sejal Sheth</option>
+                        <option value="unassigned">Unassigned</option>
+                    </select>
+                    
+                    <select id="filterPriority" onchange="filterTasks()" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Priorities</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    
+                    <button onclick="clearFilters()" class="px-3 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                        Clear Filters
+                    </button>
+                    
+                    <!-- Export/Import Controls -->
+                    <div class="flex gap-2">
+                        <button onclick="exportData()" class="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1">
+                            📥 Export
+                        </button>
+                        <label class="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1 cursor-pointer">
+                            📤 Import
+                            <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
+                        </label>
+                    </div>
+                    
+                    <button onclick="openCreateModal()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2">
+                        <span>+</span>
+                        Create Task
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Active Labels Filter -->
+            <div id="activeLabels" class="mt-3 flex flex-wrap gap-1"></div>
+        </div>
+    </div>
+
+    <!-- Board -->
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="board">
+            <!-- Columns will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div id="taskModal" class="modal">
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h2 id="modalTitle" class="text-lg font-semibold">Create New Task</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                    <input type="text" id="taskTitle" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter task title" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea id="taskDescription" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" placeholder="Enter task description"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select id="taskType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="story">📋 Story</option>
+                            <option value="bug">🐛 Bug</option>
+                            <option value="task">✓ Task</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                        <select id="taskPriority" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="taskStatus" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="backlog">Backlog</option>
+                            <option value="todo">To Do</option>
+                            <option value="inprogress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Assignee</label>
+                        <select id="taskAssignee" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Unassigned</option>
+                            <option value="surya">Venkata Surya</option>
+                            <option value="sushanth">Sushanth Maiya</option>
+                            <option value="shivani">Shivani Tajane</option>
+                            <option value="sejal">Sejal Sheth</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <input type="date" id="taskDueDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Labels Section -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Labels</label>
+                    <div class="flex flex-wrap gap-2 mb-2" id="selectedLabels"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="newLabel" placeholder="Add label..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addLabel()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Add</button>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500">Common labels: frontend, backend, ui/ux, bug-fix, enhancement, documentation</div>
+                </div>
+
+                <!-- Subtasks Section -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Subtasks</label>
+                    <div id="subtasksList" class="mb-2"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="newSubtask" placeholder="Add subtask..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addSubtask()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Add</button>
+                    </div>
+                </div>
+
+                <!-- Comments Section -->
+                <div id="commentsSection" style="display: none;">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Comments</label>
+                    <div id="commentsList" class="mb-2 max-h-40 overflow-y-auto"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="newComment" placeholder="Add comment..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="addComment()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Comment</button>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button onclick="saveTask()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center gap-2">
+                        <span>💾</span>
+                        <span id="saveButtonText">Create Task</span>
+                    </button>
+                    <button onclick="closeModal()" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let tasks = [];
+        let editingTaskId = null;
+        let draggedTask = null;
+        let currentLabels = [];
+        let currentSubtasks = [];
+        let currentComments = [];
+        let allLabels = new Set();
+
+        // Configuration
+        const statuses = [
+            { id: 'backlog', title: 'Backlog', color: 'bg-gray-100' },
+            { id: 'todo', title: 'To Do', color: 'bg-blue-100' },
+            { id: 'inprogress', title: 'In Progress', color: 'bg-yellow-100' },
+            { id: 'done', title: 'Done', color: 'bg-green-100' }
+        ];
+
+        const priorities = [
+            { id: 'low', label: 'Low', color: 'text-green-600', bgColor: 'bg-green-50' },
+            { id: 'medium', label: 'Medium', color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+            { id: 'high', label: 'High', color: 'text-orange-600', bgColor: 'bg-orange-50' },
+            { id: 'urgent', label: 'Urgent', color: 'text-red-600', bgColor: 'bg-red-50' }
+        ];
+
+        const taskTypes = [
+            { id: 'story', label: 'Story', icon: '📋', color: 'bg-blue-500' },
+            { id: 'bug', label: 'Bug', icon: '🐛', color: 'bg-red-500' },
+            { id: 'task', label: 'Task', icon: '✓', color: 'bg-green-500' }
+        ];
+
+        const teamMembers = [
+            { id: 'surya', name: 'Venkata Surya' },
+            { id: 'sushanth', name: 'Sushanth Maiya' },
+            { id: 'shivani', name: 'Shivani Tajane' },
+            { id: 'sejal', name: 'Sejal Sheth' }
+        ];
+
+        const labelColors = [
+            'bg-blue-100 text-blue-800',
+            'bg-green-100 text-green-800',
+            'bg-yellow-100 text-yellow-800',
+            'bg-red-100 text-red-800',
+            'bg-purple-100 text-purple-800',
+            'bg-pink-100 text-pink-800',
+            'bg-indigo-100 text-indigo-800'
+        ];
+
+        // Local Storage Functions
+        function saveToLocalStorage() {
+            localStorage.setItem('kanban-tasks', JSON.stringify(tasks));
+            localStorage.setItem('kanban-labels', JSON.stringify([...allLabels]));
+        }
+
+        function loadFromLocalStorage() {
+            const savedTasks = localStorage.getItem('kanban-tasks');
+            const savedLabels = localStorage.getItem('kanban-labels');
+            
+            if (savedTasks) {
+                tasks = JSON.parse(savedTasks);
+            } else {
+                initializeSampleTasks();
+            }
+            
+            if (savedLabels) {
+                allLabels = new Set(JSON.parse(savedLabels));
+            }
+        }
+
+        // Initialize with sample data (updated for parent-child relationships)
+        function initializeSampleTasks() {
+            // Start with empty board - remove this section to have sample data
+            tasks = [];
+            
+            // Uncomment below to add sample data for testing
+            /*
+            tasks = [
+                {
+                    id: '1',
+                    title: 'Set up project repository',
+                    description: 'Initialize the project with proper folder structure and dependencies',
+                    status: 'done',
+                    priority: 'high',
+                    type: 'task',
+                    assignee: 'john',
+                    createdAt: '2025-06-10',
+                    dueDate: '2025-06-15',
+                    labels: ['setup', 'infrastructure'],
+                    comments: [
+                        { id: 'c1', author: 'John', text: 'Repository created and configured', timestamp: '2025-06-10' }
+                    ]
+                },
+                {
+                    id: 'st1',
+                    title: 'Create GitHub repository',
+                    description: 'Set up the main repository with proper README and gitignore',
+                    status: 'done',
+                    priority: 'medium',
+                    type: 'task',
+                    assignee: 'john',
+                    createdAt: '2025-06-10',
+                    dueDate: '2025-06-06-12',
+                    labels: ['setup'],
+                    comments: [],
+                    parentTask: '1',
+                    isSubtask: true
+                },
+                {
+                    id: 'st2',
+                    title: 'Configure folder structure',
+                    description: 'Organize project folders and initial file structure',
+                    status: 'done',
+                    priority: 'medium',
+                    type: 'task',
+                    assignee: 'john',
+                    createdAt: '2025-06-10',
+                    labels: ['setup'],
+                    comments: [],
+                    parentTask: '1',
+                    isSubtask: true
+                },
+                {
+                    id: '2',
+                    title: 'Design user interface mockups',
+                    description: 'Create wireframes and visual designs for the main application screens',
+                    status: 'inprogress',
+                    priority: 'medium',
+                    type: 'story',
+                    assignee: 'sarah',
+                    createdAt: '2025-06-12',
+                    dueDate: '2025-06-18',
+                    labels: ['design', 'ui/ux'],
+                    comments: [
+                        { id: 'c2', author: 'Sarah', text: 'Wireframes completed, starting visual designs', timestamp: '2025-06-14' }
+                    ]
+                },
+                {
+                    id: 'st3',
+                    title: 'Create wireframes',
+                    description: 'Low-fidelity wireframes for all main screens',
+                    status: 'done',
+                    priority: 'medium',
+                    type: 'task',
+                    assignee: 'sarah',
+                    createdAt: '2025-06-12',
+                    labels: ['design'],
+                    comments: [],
+                    parentTask: '2',
+                    isSubtask: true
+                },
+                {
+                    id: 'st4',
+                    title: 'Design main dashboard',
+                    description: 'High-fidelity design for the dashboard interface',
+                    status: 'inprogress',
+                    priority: 'medium',
+                    type: 'task',
+                    assignee: 'sarah',
+                    createdAt: '2025-06-12',
+                    labels: ['design'],
+                    comments: [],
+                    parentTask: '2',
+                    isSubtask: true
+                },
+                {
+                    id: 'st5',
+                    title: 'Create component library',
+                    description: 'Reusable UI components and style guide',
+                    status: 'todo',
+                    priority: 'low',
+                    type: 'task',
+                    assignee: 'sarah',
+                    createdAt: '2025-06-12',
+                    labels: ['design'],
+                    comments: [],
+                    parentTask: '2',
+                    isSubtask: true
+                },
+                {
+                    id: '3',
+                    title: 'Fix login validation bug',
+                    description: 'Users can bypass email validation on the login form',
+                    status: 'todo',
+                    priority: 'urgent',
+                    type: 'bug',
+                    assignee: 'jane',
+                    createdAt: '2025-06-14',
+                    dueDate: '2025-06-16',
+                    labels: ['bug-fix', 'security'],
+                    comments: []
+                },
+                {
+                    id: 'st6',
+                    title: 'Reproduce the bug',
+                    description: 'Create test cases to consistently reproduce the validation bypass',
+                    status: 'todo',
+                    priority: 'urgent',
+                    type: 'task',
+                    assignee: 'jane',
+                    createdAt: '2025-06-14',
+                    labels: ['bug-fix'],
+                    comments: [],
+                    parentTask: '3',
+                    isSubtask: true
+                },
+                {
+                    id: 'st7',
+                    title: 'Fix validation logic',
+                    description: 'Implement proper email validation that cannot be bypassed',
+                    status: 'backlog',
+                    priority: 'urgent',
+                    type: 'task',
+                    assignee: 'jane',
+                    createdAt: '2025-06-14',
+                    labels: ['bug-fix'],
+                    comments: [],
+                    parentTask: '3',
+                    isSubtask: true
+                }
+            ];
+            */
+
+            // Initialize empty labels set
+            allLabels = new Set();
+            
+            // Extract labels from sample tasks (only if sample data exists)
+            tasks.forEach(task => {
+                if (task.labels) {
+                    task.labels.forEach(label => allLabels.add(label));
+                }
+            });
+        }
+
+        // Get subtask completion percentage (now based on actual task status)
+        function getSubtaskProgress(taskId) {
+            const subtasks = tasks.filter(task => task.parentTask === taskId);
+            if (subtasks.length === 0) return 0;
+            const completed = subtasks.filter(task => task.status === 'done').length;
+            return Math.round((completed / subtasks.length) * 100);
+        }
+
+        // Create task card HTML (updated for parent-child relationships)
+        function createTaskCard(task) {
+            const priority = priorities.find(p => p.id === task.priority);
+            const taskType = taskTypes.find(t => t.id === task.type);
+            const assignee = teamMembers.find(m => m.id === task.assignee);
+            const progress = getSubtaskProgress(task.id);
+            const subtaskCount = tasks.filter(t => t.parentTask === task.id).length;
+            
+            // Generate labels HTML
+            let labelsHtml = '';
+            if (task.labels && task.labels.length > 0) {
+                labelsHtml = task.labels.slice(0, 3).map((label, index) => {
+                    const colorClass = labelColors[index % labelColors.length];
+                    return `<span class="label ${colorClass}">${label}</span>`;
+                }).join('');
+                if (task.labels.length > 3) {
+                    labelsHtml += `<span class="label bg-gray-100 text-gray-600">+${task.labels.length - 3}</span>`;
+                }
+            }
+
+            // Comments indicator
+            const commentCount = task.comments ? task.comments.length : 0;
+            const commentIndicator = commentCount > 0 ? `<span class="text-xs text-gray-500">💬 ${commentCount}</span>` : '';
+
+            // Subtasks indicator
+            const subtaskIndicator = subtaskCount > 0 ? `<span class="text-xs text-gray-500">📝 ${subtaskCount} (${progress}%)</span>` : '';
+
+            // Parent indicator for subtasks
+            const parentIndicator = task.isSubtask ? `<span class="text-xs text-blue-600">↳ Subtask</span>` : '';
+
+            return `
+                <div class="task-card bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 cursor-move hover:shadow-md transition-all duration-200 ${task.isSubtask ? 'ml-4 border-l-4 border-blue-300' : ''}" 
+                     draggable="true" 
+                     ondragstart="handleDragStart(event, '${task.id}')"
+                     ondragend="handleDragEnd(event)"
+                     data-task-id="${task.id}">
+                    
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="inline-block w-6 h-6 rounded text-white text-xs flex items-center justify-center ${taskType.color}">
+                                ${taskType.icon}
+                            </span>
+                            <span class="px-2 py-1 rounded-full text-xs font-medium ${priority.color} ${priority.bgColor}">
+                                ${priority.label}
+                            </span>
+                            ${parentIndicator}
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="editTask('${task.id}')" class="p-1 text-gray-400 hover:text-gray-600">
+                                ✏️
+                            </button>
+                            <button onclick="deleteTask('${task.id}')" class="p-1 text-gray-400 hover:text-red-600">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <h3 class="font-medium text-gray-900 mb-2 line-clamp-2">${task.title}</h3>
+                    
+                    ${task.description ? `<p class="text-sm text-gray-600 mb-3 line-clamp-2">${task.description}</p>` : ''}
+                    
+                    ${labelsHtml ? `<div class="mb-2">${labelsHtml}</div>` : ''}
+                    
+                    ${subtaskCount > 0 ? `
+                        <div class="mb-2">
+                            <div class="text-xs text-gray-600 mb-1">${subtaskCount} subtasks</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <div class="flex items-center gap-2">
+                            ${assignee ? `<span class="text-sm font-medium">${assignee.name}</span>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${commentIndicator}
+                            ${subtaskIndicator}
+                            ${task.dueDate ? `<div class="flex items-center gap-1"><span>📅</span><span>${task.dueDate}</span></div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Filter and search functions
+        function filterTasks() {
+            const searchTerm = document.getElementById('searchTasks').value.toLowerCase();
+            const filterAssignee = document.getElementById('filterAssignee').value;
+            const filterPriority = document.getElementById('filterPriority').value;
+            
+            const taskCards = document.querySelectorAll('.task-card');
+            
+            taskCards.forEach(card => {
+                const taskId = card.getAttribute('data-task-id');
+                const task = tasks.find(t => t.id === taskId);
+                
+                let show = true;
+                
+                // Search filter
+                if (searchTerm) {
+                    const searchableText = `${task.title} ${task.description || ''} ${(task.labels || []).join(' ')}`.toLowerCase();
+                    if (!searchableText.includes(searchTerm)) {
+                        show = false;
+                    }
+                }
+                
+                // Assignee filter
+                if (filterAssignee) {
+                    if (filterAssignee === 'unassigned' && task.assignee) {
+                        show = false;
+                    } else if (filterAssignee !== 'unassigned' && task.assignee !== filterAssignee) {
+                        show = false;
+                    }
+                }
+                
+                // Priority filter
+                if (filterPriority && task.priority !== filterPriority) {
+                    show = false;
+                }
+                
+                card.style.display = show ? 'block' : 'none';
+            });
+            
+            updateColumnCounts();
+        }
+
+        function clearFilters() {
+            document.getElementById('searchTasks').value = '';
+            document.getElementById('filterAssignee').value = '';
+            document.getElementById('filterPriority').value = '';
+            filterTasks();
+        }
+
+        function updateColumnCounts() {
+            statuses.forEach(status => {
+                const column = document.querySelector(`[data-status="${status.id}"]`);
+                if (column) {
+                    const visibleCards = column.querySelectorAll('.task-card:not([style*="display: none"])');
+                    const countElement = column.querySelector('.task-count');
+                    if (countElement) {
+                        countElement.textContent = visibleCards.length;
+                    }
+                }
+            });
+        }
+
+        // Render the board
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+
+            statuses.forEach(status => {
+                const columnTasks = tasks.filter(task => task.status === status.id);
+                
+                const column = document.createElement('div');
+                column.className = `${status.color} rounded-lg p-4 min-h-96 transition-all duration-200`;
+                column.setAttribute('ondragover', 'handleDragOver(event)');
+                column.setAttribute('ondrop', `handleDrop(event, '${status.id}')`);
+                column.setAttribute('data-status', status.id);
+                
+                column.innerHTML = `
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-semibold text-gray-800">${status.title}</h2>
+                        <span class="task-count bg-white px-2 py-1 rounded-full text-xs font-medium text-gray-600">
+                            ${columnTasks.length}
+                        </span>
+                    </div>
+                    <div class="space-y-3">
+                        ${columnTasks.map(task => createTaskCard(task)).join('')}
+                    </div>
+                `;
+                
+                board.appendChild(column);
+            });
+            
+            saveToLocalStorage();
+        }
+
+        // Label management
+        function addLabel() {
+            const labelInput = document.getElementById('newLabel');
+            const label = labelInput.value.trim().toLowerCase();
+            
+            if (label && !currentLabels.includes(label)) {
+                currentLabels.push(label);
+                allLabels.add(label);
+                labelInput.value = '';
+                renderSelectedLabels();
+            }
+        }
+
+        function removeLabel(label) {
+            currentLabels = currentLabels.filter(l => l !== label);
+            renderSelectedLabels();
+        }
+
+        function renderSelectedLabels() {
+            const container = document.getElementById('selectedLabels');
+            container.innerHTML = currentLabels.map((label, index) => {
+                const colorClass = labelColors[index % labelColors.length];
+                return `<span class="label ${colorClass}">${label} <button onclick="removeLabel('${label}')" class="ml-1 text-red-600">×</button></span>`;
+            }).join('');
+        }
+
+        // Subtask management (creates actual tasks)
+        function addSubtask() {
+            const subtaskInput = document.getElementById('newSubtask');
+            const text = subtaskInput.value.trim();
+            
+            if (text) {
+                // Create a new task as subtask
+                const parentTaskId = editingTaskId || 'temp_parent';
+                const subtaskId = 'task_' + Date.now();
+                
+                const subtaskData = {
+                    id: subtaskId,
+                    title: text,
+                    description: '',
+                    type: 'task',
+                    priority: 'medium',
+                    status: 'backlog',
+                    assignee: '',
+                    dueDate: '',
+                    labels: [],
+                    subtasks: [],
+                    comments: [],
+                    createdAt: new Date().toISOString().split('T')[0],
+                    parentTask: parentTaskId,
+                    isSubtask: true
+                };
+                
+                if (editingTaskId) {
+                    // Add to existing task
+                    tasks.push(subtaskData);
+                    renderBoard();
+                } else {
+                    // Store for new task being created
+                    currentSubtasks.push(subtaskData);
+                }
+                
+                subtaskInput.value = '';
+                renderSubtasks();
+            }
+        }
+
+        function removeSubtask(subtaskId) {
+            if (editingTaskId) {
+                // Remove from tasks array
+                tasks = tasks.filter(task => task.id !== subtaskId);
+                renderBoard();
+            } else {
+                // Remove from current creation
+                currentSubtasks = currentSubtasks.filter(st => st.id !== subtaskId);
+            }
+            renderSubtasks();
+        }
+
+        function renderSubtasks() {
+            const container = document.getElementById('subtasksList');
+            let subtasksToShow = [];
+            
+            if (editingTaskId) {
+                // Show existing subtasks for this task
+                subtasksToShow = tasks.filter(task => task.parentTask === editingTaskId);
+            } else {
+                // Show subtasks being created
+                subtasksToShow = currentSubtasks;
+            }
+            
+            container.innerHTML = subtasksToShow.map(subtask => {
+                const statusIcon = getStatusIcon(subtask.status);
+                return `
+                    <div class="subtask bg-white border rounded p-2 mb-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm">${statusIcon}</span>
+                            <span class="text-sm">${subtask.title}</span>
+                            ${subtask.assignee ? `<span class="text-xs text-gray-500">(${getAssigneeName(subtask.assignee)})</span>` : ''}
+                        </div>
+                        <div class="flex gap-1">
+                            ${editingTaskId ? `<button onclick="editTask('${subtask.id}')" class="text-blue-600 text-xs hover:underline">Edit</button>` : ''}
+                            <button onclick="removeSubtask('${subtask.id}')" class="text-red-600 text-xs">×</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getStatusIcon(status) {
+            const icons = {
+                'backlog': '📋',
+                'todo': '⏳',
+                'inprogress': '⚡',
+                'done': '✅'
+            };
+            return icons[status] || '📋';
+        }
+
+        function getAssigneeName(assigneeId) {
+            const assignee = teamMembers.find(m => m.id === assigneeId);
+            return assignee ? assignee.name : 'Unassigned';
+        }
+
+        // Comment management
+        function addComment() {
+            const commentInput = document.getElementById('newComment');
+            const text = commentInput.value.trim();
+            
+            if (text) {
+                currentComments.push({
+                    id: 'c_' + Date.now(),
+                    author: 'You', // In a real app, this would be the current user
+                    text: text,
+                    timestamp: new Date().toISOString().split('T')[0]
+                });
+                commentInput.value = '';
+                renderComments();
+            }
+        }
+
+        function removeComment(commentId) {
+            currentComments = currentComments.filter(c => c.id !== commentId);
+            renderComments();
+        }
+
+        function renderComments() {
+            const container = document.getElementById('commentsList');
+            container.innerHTML = currentComments.map(comment => `
+                <div class="comment">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <strong>${comment.author}</strong>
+                            <span class="text-xs text-gray-500 ml-2">${comment.timestamp}</span>
+                        </div>
+                        <button onclick="removeComment('${comment.id}')" class="text-red-600 text-xs">×</button>
+                    </div>
+                    <div class="mt-1">${comment.text}</div>
+                </div>
+            `).join('');
+        }
+
+        // Modal functions
+        function openCreateModal() {
+            editingTaskId = null;
+            document.getElementById('modalTitle').textContent = 'Create New Task';
+            document.getElementById('saveButtonText').textContent = 'Create Task';
+            document.getElementById('commentsSection').style.display = 'none';
+            clearForm();
+            document.getElementById('taskModal').classList.add('show');
+        }
+
+        function editTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            editingTaskId = taskId;
+            document.getElementById('modalTitle').textContent = 'Edit Task';
+            document.getElementById('saveButtonText').textContent = 'Update Task';
+            document.getElementById('commentsSection').style.display = 'block';
+            
+            // Populate form
+            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskDescription').value = task.description || '';
+            document.getElementById('taskType').value = task.type;
+            document.getElementById('taskPriority').value = task.priority;
+            document.getElementById('taskStatus').value = task.status;
+            document.getElementById('taskAssignee').value = task.assignee || '';
+            document.getElementById('taskDueDate').value = task.dueDate || '';
+            
+            // Set current data
+            currentLabels = [...(task.labels || [])];
+            currentSubtasks = []; // Not used anymore since subtasks are real tasks
+            currentComments = [...(task.comments || [])];
+            
+            // Render current data
+            renderSelectedLabels();
+            renderSubtasks(); // This will show actual subtask tasks
+            renderComments();
+            
+            document.getElementById('taskModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('taskModal').classList.remove('show');
+            clearForm();
+        }
+
+        function clearForm() {
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDescription').value = '';
+            document.getElementById('taskType').value = 'task';
+            document.getElementById('taskPriority').value = 'medium';
+            document.getElementById('taskStatus').value = 'backlog';
+            document.getElementById('taskAssignee').value = '';
+            document.getElementById('taskDueDate').value = '';
+            
+            currentLabels = [];
+            currentSubtasks = [];
+            currentComments = [];
+            
+            renderSelectedLabels();
+            renderSubtasks();
+            renderComments();
+        }
+
+        function saveTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            if (!title) {
+                alert('Please enter a task title');
+                return;
+            }
+
+            const taskData = {
+                title: title,
+                description: document.getElementById('taskDescription').value,
+                type: document.getElementById('taskType').value,
+                priority: document.getElementById('taskPriority').value,
+                status: document.getElementById('taskStatus').value,
+                assignee: document.getElementById('taskAssignee').value,
+                dueDate: document.getElementById('taskDueDate').value,
+                labels: [...currentLabels],
+                comments: [...currentComments],
+                createdAt: new Date().toISOString().split('T')[0]
+            };
+
+            let savedTaskId;
+
+            if (editingTaskId) {
+                // Update existing task
+                const taskIndex = tasks.findIndex(t => t.id === editingTaskId);
+                tasks[taskIndex] = { ...tasks[taskIndex], ...taskData };
+                savedTaskId = editingTaskId;
+            } else {
+                // Create new task
+                savedTaskId = Date.now().toString();
+                taskData.id = savedTaskId;
+                tasks.push(taskData);
+
+                // Create subtasks as actual tasks
+                currentSubtasks.forEach(subtask => {
+                    subtask.parentTask = savedTaskId;
+                    subtask.isSubtask = true;
+                    tasks.push(subtask);
+                });
+            }
+
+            // Update global labels
+            currentLabels.forEach(label => allLabels.add(label));
+
+            renderBoard();
+            closeModal();
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('Are you sure you want to delete this task? This will also delete all its subtasks.')) {
+                // Delete the task and all its subtasks
+                tasks = tasks.filter(task => task.id !== taskId && task.parentTask !== taskId);
+                renderBoard();
+            }
+        }
+
+        // Drag and drop functions
+        function handleDragStart(event, taskId) {
+            draggedTask = tasks.find(t => t.id === taskId);
+            event.dataTransfer.effectAllowed = 'move';
+            event.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(event) {
+            event.target.classList.remove('dragging');
+            draggedTask = null;
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDrop(event, newStatus) {
+            event.preventDefault();
+            
+            if (draggedTask && draggedTask.status !== newStatus) {
+                const taskIndex = tasks.findIndex(t => t.id === draggedTask.id);
+                tasks[taskIndex].status = newStatus;
+                renderBoard();
+            }
+        }
+
+        // Export/Import Functions
+        function exportData() {
+            const exportData = {
+                version: "1.0",
+                exportDate: new Date().toISOString(),
+                totalTasks: tasks.length,
+                data: {
+                    tasks: tasks,
+                    labels: [...allLabels],
+                    teamMembers: teamMembers,
+                    statuses: statuses,
+                    priorities: priorities,
+                    taskTypes: taskTypes
+                },
+                metadata: {
+                    boardName: "Project Board",
+                    lastModified: new Date().toISOString(),
+                    creator: "Kanban Board Tool"
+                }
+            };
+
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `kanban-board-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            // Show success message
+            showNotification('✅ Data exported successfully!', 'success');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // Validate the imported data structure
+                    if (!validateImportData(importedData)) {
+                        showNotification('❌ Invalid file format. Please select a valid export file.', 'error');
+                        return;
+                    }
+
+                    // Show confirmation dialog
+                    const confirmMessage = `Import ${importedData.totalTasks} tasks from ${importedData.exportDate.split('T')[0]}?\n\nThis will replace all current data. Current data will be backed up automatically.`;
+                    
+                    if (confirm(confirmMessage)) {
+                        // Backup current data before import
+                        backupCurrentData();
+                        
+                        // Import the data
+                        tasks = importedData.data.tasks || [];
+                        allLabels = new Set(importedData.data.labels || []);
+                        
+                        // Update UI
+                        renderBoard();
+                        saveToLocalStorage();
+                        
+                        showNotification(`✅ Successfully imported ${tasks.length} tasks!`, 'success');
+                    }
+                } catch (error) {
+                    console.error('Import error:', error);
+                    showNotification('❌ Error reading file. Please check the file format.', 'error');
+                }
+            };
+            
+            reader.readAsText(file);
+            // Reset the file input
+            event.target.value = '';
+        }
+
+        function validateImportData(data) {
+            // Check if the data has the expected structure
+            return data && 
+                   data.version && 
+                   data.data && 
+                   Array.isArray(data.data.tasks) &&
+                   data.data.labels;
+        }
+
+        function backupCurrentData() {
+            const backupData = {
+                version: "1.0",
+                exportDate: new Date().toISOString(),
+                totalTasks: tasks.length,
+                isBackup: true,
+                data: {
+                    tasks: tasks,
+                    labels: [...allLabels]
+                }
+            };
+
+            const jsonString = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `kanban-backup-${new Date().toISOString().split('T')[0]}-${Date.now()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-md text-white z-50 transition-all duration-300 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            
+            // Add to page
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+                notification.style.opacity = '1';
+            }, 100);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Quick export functions for different formats
+        function exportTasksAsCSV() {
+            const csvHeaders = ['ID', 'Title', 'Description', 'Status', 'Priority', 'Type', 'Assignee', 'Due Date', 'Labels', 'Is Subtask', 'Parent Task', 'Created Date'];
+            const csvRows = [csvHeaders.join(',')];
+            
+            tasks.forEach(task => {
+                const assigneeName = task.assignee ? getAssigneeName(task.assignee) : 'Unassigned';
+                const labels = (task.labels || []).join(';');
+                const row = [
+                    task.id,
+                    `"${task.title.replace(/"/g, '""')}"`,
+                    `"${(task.description || '').replace(/"/g, '""')}"`,
+                    task.status,
+                    task.priority,
+                    task.type,
+                    assigneeName,
+                    task.dueDate || '',
+                    `"${labels}"`,
+                    task.isSubtask ? 'Yes' : 'No',
+                    task.parentTask || '',
+                    task.createdAt
+                ];
+                csvRows.push(row.join(','));
+            });
+            
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `kanban-tasks-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            showNotification('📊 CSV exported successfully!', 'success');
+        }
+
+        // Enhanced keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            // Ctrl/Cmd + N for new task
+            if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+                event.preventDefault();
+                openCreateModal();
+            }
+            
+            // Ctrl/Cmd + E for export
+            if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+                event.preventDefault();
+                exportData();
+            }
+            
+            // Ctrl/Cmd + Shift + E for CSV export
+            if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'E') {
+                event.preventDefault();
+                exportTasksAsCSV();
+            }
+            
+            // Escape to close modal
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+            
+            // Enter to add subtask/comment when focused on respective inputs
+            if (event.key === 'Enter') {
+                if (event.target.id === 'newSubtask') {
+                    event.preventDefault();
+                    addSubtask();
+                } else if (event.target.id === 'newComment') {
+                    event.preventDefault();
+                    addComment();
+                } else if (event.target.id === 'newLabel') {
+                    event.preventDefault();
+                    addLabel();
+                }
+            }
+        });
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFromLocalStorage();
+            renderBoard();
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('taskModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
+
+        // Auto-save every 30 seconds
+        setInterval(saveToLocalStorage, 30000);
+    </script>
+</body>
+</html>
